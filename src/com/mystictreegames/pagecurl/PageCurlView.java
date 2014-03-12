@@ -3,8 +3,6 @@ package com.mystictreegames.pagecurl;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
-import com.mystictreegames.pagecurl.R;
-
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
@@ -81,7 +79,7 @@ public class PageCurlView extends View {
 	
 	/** Our points used to define the current clipping paths in our draw call */
 	private Vector2D mA, mB, mC, mD, mE, mF, mOldF, mOrigin;
-	
+
 	/** Left and top offset to be applied when drawing */
 	private int mCurrentLeft, mCurrentTop;
 	
@@ -89,11 +87,11 @@ public class PageCurlView extends View {
 	private boolean bViewDrawn;
 	
 	/** Defines the flip direction that is currently considered */
-	private boolean bFlipRight;
+	private boolean bFlipUp;
 	
 	/** If TRUE we are currently auto-flipping */
 	private boolean bFlipping;
-	
+
 	/** TRUE if the user moves the pages */
 	private boolean bUserMoves;
 
@@ -292,7 +290,7 @@ public class PageCurlView extends View {
 		mCurlEdgePaint = new Paint();
 		mCurlEdgePaint.setColor(Color.WHITE);
 		mCurlEdgePaint.setAntiAlias(true);
-		mCurlEdgePaint.setStyle(Paint.Style.FILL);
+		mCurlEdgePaint.setStyle(Style.FILL);
 		mCurlEdgePaint.setShadowLayer(10, -5, 5, 0x99000000);
 		
 		// Set the default props, those come from an XML :D
@@ -327,16 +325,16 @@ public class PageCurlView extends View {
 		// Now set the points
 		// TODO: OK, those points MUST come from our measures and
 		// the actual bounds of the view!
-		mA = new Vector2D(mInitialEdgeOffset, 0);
+        mA = new Vector2D(0, 0);
 		mB = new Vector2D(this.getWidth(), this.getHeight());
-		mC = new Vector2D(this.getWidth(), 0);
-		mD = new Vector2D(0, 0);
+        mC = new Vector2D(0, this.getHeight());
+        mD = new Vector2D(0, mInitialEdgeOffset);
 		mE = new Vector2D(0, 0);
 		mF = new Vector2D(0, 0);		
 		mOldF = new Vector2D(0, 0);
 		
 		// The movement origin point
-		mOrigin = new Vector2D(this.getWidth(), 0);
+        mOrigin = new Vector2D(0, this.getHeight());
 	}
 	
 	/**
@@ -555,6 +553,7 @@ public class PageCurlView extends View {
 			mFinger.x = event.getX();
 			mFinger.y = event.getY();
 			int width = getWidth();
+            int height = getHeight();
 			
 			// Depending on the action do what we need to
 			switch (event.getAction()) {
@@ -563,22 +562,22 @@ public class PageCurlView extends View {
 				mOldMovement.y = mFinger.y;
 				
 				// If we moved over the half of the display flip to next
-				if (mOldMovement.x > (width >> 1)) {
+                if (mOldMovement.y > (height >> 1)) {
 					mMovement.x = mInitialEdgeOffset;
 					mMovement.y = mInitialEdgeOffset;
 					
-					// Set the right movement flag
-					bFlipRight = true;
+					// Set the up movement flag
+					bFlipUp = true;
 				} else {
-					// Set the left movement flag
-					bFlipRight = false;
+					// Set the down movement flag
+					bFlipUp = false;
 					
 					// go to next previous page
 					previousView();
 					
 					// Set new movement
-					mMovement.x = IsCurlModeDynamic()?width<<1:width;
-					mMovement.y = mInitialEdgeOffset;
+                    mMovement.y = IsCurlModeDynamic()?width<<1:width;
+                    mMovement.x = mInitialEdgeOffset;
 				}
 				
 				break;
@@ -596,14 +595,15 @@ public class PageCurlView extends View {
 				mMovement = CapMovement(mMovement, true);
 				
 				// Make sure the y value get's locked at a nice level
-				if ( mMovement.y  <= 1 )
-					mMovement.y = 1;
+                if (mMovement.x <= 1) {
+                    mMovement.x = 1;
+                }
 				
 				// Get movement direction
-				if (mFinger.x < mOldMovement.x ) {
-					bFlipRight = true;
+                if (mFinger.y < mOldMovement.y) {
+					bFlipUp = true;
 				} else {
-					bFlipRight = false;
+					bFlipUp = false;
 				}
 				
 				// Save old movement values
@@ -634,7 +634,7 @@ public class PageCurlView extends View {
 	private Vector2D CapMovement(Vector2D point, boolean bMaintainMoveDir)
 	{
 		// Make sure we never ever move too much
-		if (point.distance(mOrigin) > mFlipRadius)
+        if (point.distance(mOrigin) > mFlipRadius)
 		{
 			if ( bMaintainMoveDir )
 			{
@@ -643,12 +643,12 @@ public class PageCurlView extends View {
 			}
 			else
 			{
-				// Change direction
-				if ( point.x > (mOrigin.x+mFlipRadius))
-					point.x = (mOrigin.x+mFlipRadius);
-				else if ( point.x < (mOrigin.x-mFlipRadius) )
-					point.x = (mOrigin.x-mFlipRadius);
-				point.y = (float) (Math.sin(Math.acos(Math.abs(point.x-mOrigin.x)/mFlipRadius))*mFlipRadius);
+                if (point.y > mOrigin.y + mFlipRadius) {
+                    point.y = mOrigin.y + mFlipRadius;
+                } else if (point.y < mOrigin.y - mFlipRadius) {
+                    point.y = mOrigin.y - mFlipRadius;
+                }
+                point.x = (float) Math.sin(Math.acos(Math.abs(point.y - mOrigin.y) / mFlipRadius)) * mFlipRadius;
 			}
 		}
 		return point;
@@ -660,28 +660,28 @@ public class PageCurlView extends View {
 	public void FlipAnimationStep() {
 		if ( !bFlipping )
 			return;
-		
-		int width = getWidth();
+
+        int height = getHeight();
 			
 		// No input when flipping
 		bBlockTouchInput = true;
 		
 		// Handle speed
 		float curlSpeed = mCurlSpeed;
-		if ( !bFlipRight )
+		if ( !bFlipUp)
 			curlSpeed *= -1;
 		
 		// Move us
-		mMovement.x += curlSpeed;
+        mMovement.y += curlSpeed;
 		mMovement = CapMovement(mMovement, false);
 		
 		// Create values
 		DoPageCurl();
 		
 		// Check for endings :D
-		if (mA.x < 1 || mA.x > width - 1) {
+        if (mD.y < 1 || mD.y > height - 1) {
 			bFlipping = false;
-			if (bFlipRight) {
+			if (bFlipUp) {
 				//SwapViews();
 				nextView();
 			} 
@@ -780,10 +780,10 @@ public class PageCurlView extends View {
 		mF.y = height - mMovement.y+0.1f;
 		
 		// Set min points
-		if(mA.x==0) {
-			mF.x= Math.min(mF.x, mOldF.x);
-			mF.y= Math.max(mF.y, mOldF.y);
-		}
+        if (mD.y == 0) {
+            mF.x = Math.max(mF.x, mOldF.x);
+            mF.y = Math.min(mF.y, mOldF.y);
+        }
 		
 		// Get diffs
 		float deltaX = width-mF.x;
@@ -801,22 +801,22 @@ public class PageCurlView extends View {
 		mD.y = (float) (height - (BH / _sin));
 		mD.x = width;
 
-		mA.x = Math.max(0,mA.x);
-		if(mA.x==0) {
-			mOldF.x = mF.x;
-			mOldF.y = mF.y;
-		}
+        mD.y = Math.max(0, mD.y);
+        if (mD.y == 0) {
+            mOldF.x = mF.x;
+            mOldF.y = mF.y;
+        }
 		
 		// Get W
-		mE.x = mD.x;
-		mE.y = mD.y;
+        mE.x = mA.x;
+        mE.y = mA.y;
 		
 		// Correct
-		if (mD.y < 0) {
-			mD.x = width + (float) (tangAlpha * mD.y);
-			mE.y = 0;
-			mE.x = width + (float) (Math.tan(2 * alpha) * mD.y);
-		}
+        if (mA.x < 0) {
+            mA.y = height + (deltaX / deltaY) * mA.x;
+            mE.x = 0;
+            mE.y = height + (float) Math.tan(Math.atan(deltaX / deltaY) * 2) * mA.x;
+        }
 	}
 
 	/**
@@ -931,9 +931,9 @@ public class PageCurlView extends View {
 	 * @param canvas
 	 */
 	protected void onFirstDrawEvent(Canvas canvas) {
-		
-		mFlipRadius = getWidth();
-		
+
+		mFlipRadius = getHeight();
+
 		ResetClipEdge();
 		DoPageCurl();
 	}
@@ -958,11 +958,11 @@ public class PageCurlView extends View {
 	 */
 	private Path createBackgroundPath() {
 		Path path = new Path();
-		path.moveTo(mA.x, mA.y);
-		path.lineTo(mB.x, mB.y);
-		path.lineTo(mC.x, mC.y);
-		path.lineTo(mD.x, mD.y);
-		path.lineTo(mA.x, mA.y);
+        path.moveTo(mD.x, mD.y);
+        path.lineTo(mB.x, mB.y);
+        path.lineTo(mC.x, mC.y);
+        path.lineTo(mA.x, mA.y);
+        path.lineTo(mD.x, mD.y);
 		return path;
 	}
 	
@@ -993,11 +993,11 @@ public class PageCurlView extends View {
 	 */
 	private Path createCurlEdgePath() {
 		Path path = new Path();
-		path.moveTo(mA.x, mA.y);
-		path.lineTo(mD.x, mD.y);
-		path.lineTo(mE.x, mE.y);
-		path.lineTo(mF.x, mF.y);
-		path.lineTo(mA.x, mA.y);
+        path.moveTo(mD.x, mD.y);
+        path.lineTo(mA.x, mA.y);
+        path.lineTo(mE.x, mE.y);
+        path.lineTo(mF.x, mF.y);
+        path.lineTo(mD.x, mD.y);
 		return path;
 	}
 	
